@@ -1,3 +1,4 @@
+# pyrefly: ignore[missing-import]
 from dotenv import load_dotenv
 load_dotenv()   # MUST be before any core/ imports
 

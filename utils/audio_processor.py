@@ -1,15 +1,26 @@
 import yt_dlp
 from pydub import AudioSegment
 import os
+import re
+import sys
+
+if hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
 
 DOWNLOAD_DIR = 'downloades'
-os.makedirs(DOWNLOAD_DIR,exist_ok = True)
+os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-def download_youtube_audio(url :str) ->str:
-    output_path = os.path.join(DOWNLOAD_DIR, "%(title)s.%(ext)s")
+def sanitize_filename(name: str) -> str:
+    return re.sub(r'[^\w\-_\. ]', '_', name)
+
+def download_youtube_audio(url: str) -> str:
+    """Download audio from YouTube and normalize to 16kHz mono WAV."""
     ydl_opts = {
         "format": "bestaudio/best",
-        "outtmpl": output_path,
+        "outtmpl": os.path.join(DOWNLOAD_DIR, "%(id)s.%(ext)s"),
         "postprocessors": [
             {
                 "key": "FFmpegExtractAudio",
@@ -18,50 +29,81 @@ def download_youtube_audio(url :str) ->str:
             }
         ],
         "quiet": True,
+        "windowsfilenames": True,
+        "noplaylist": True,
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)
-        filename = ydl.prepare_filename(info).replace(".webm", ".wav").replace(".m4a", ".wav")
-    return filename
+        video_id = info.get("id", "audio")
+        raw_wav = os.path.join(DOWNLOAD_DIR, f"{video_id}.wav")
 
-
+    # Standardize to 16kHz mono WAV for Whisper & Sarvam
+    output_path = os.path.join(DOWNLOAD_DIR, f"{video_id}_16k.wav")
+    try:
+        audio = AudioSegment.from_file(raw_wav)
+        audio = audio.set_channels(1).set_frame_rate(16000)
+        audio.export(output_path, format="wav")
+        if os.path.exists(raw_wav) and raw_wav != output_path:
+            try:
+                os.remove(raw_wav)
+            except Exception:
+                pass
+        return output_path
+    except Exception:
+        if os.path.exists(raw_wav):
+            return raw_wav
+        raise
 
 def convert_to_wav(input_path: str) -> str:
-    """Convert any audio/video file to WAV format using pydub."""
-    output_path = os.path.splitext(input_path)[0] + "_converted.wav"
+    """Convert any audio/video file to 16kHz mono WAV format using pydub."""
+    base_name = os.path.splitext(os.path.basename(input_path))[0]
+    safe_name = sanitize_filename(base_name)
+    output_path = os.path.join(DOWNLOAD_DIR, f"{safe_name}_converted.wav")
     audio = AudioSegment.from_file(input_path)
-    audio = audio.set_channels(1).set_frame_rate(16000) #16khz
+    audio = audio.set_channels(1).set_frame_rate(16000)
     audio.export(output_path, format="wav")
     return output_path
 
+def chunk_audio(wav_path: str, chunk_minutes: int = 10) -> list:
+    audio = AudioSegment.from_file(wav_path)
+    chunk_ms = chunk_minutes * 60 * 1000
 
+    if len(audio) == 0:
+        return []
 
-def chunk_audio(wav_path : str , chunk_minutes : int = 10) -> list:
-    audio = AudioSegment.from_wav(wav_path)
-    chunk_ms = chunk_minutes * 60 * 1000 
+    # If audio is shorter than or equal to chunk_minutes, use the file directly
+    if len(audio) <= chunk_ms:
+        return [wav_path]
 
+    base_name = os.path.splitext(wav_path)[0]
     chunks = []
-
-    for i, start in enumerate(range(0,len(audio),chunk_ms)):
+    for i, start in enumerate(range(0, len(audio), chunk_ms)):
         chunk = audio[start : start + chunk_ms]
-        chunk_path = f"{wav_path}_chunk_{i}.wav"
-        chunk.export(chunk_path , format = "wav")
-
+        if len(chunk) < 500:  # Skip slivers under 0.5s
+            continue
+        chunk_path = f"{base_name}_chunk_{i}.wav"
+        chunk.export(chunk_path, format="wav")
         chunks.append(chunk_path)
-    
-    return chunks
+
+    return chunks if chunks else [wav_path]
 
 def process_input(source: str) -> list:
+    source = source.strip().strip("'\"")
+    if not source:
+        raise ValueError("Source cannot be empty.")
+
     if source.startswith("http://") or source.startswith("https://"):
         print("Detected YouTube URL. Downloading audio...")
         wav_path = download_youtube_audio(source)
     else:
+        if not os.path.exists(source):
+            raise FileNotFoundError(
+                f"File not found: '{source}'. If you intended to process an online video, ensure the URL starts with http:// or https://"
+            )
         print("Detected local file. Converting to WAV...")
         wav_path = convert_to_wav(source)
 
     print("Chunking audio...")
     chunks = chunk_audio(wav_path)
-    print(f"Audio ready — {len(chunks)} chunk(s) created.")
+    print(f"Audio ready - {len(chunks)} chunk(s) created.")
     return chunks
-
-

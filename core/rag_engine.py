@@ -1,4 +1,7 @@
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 from langchain_mistralai import ChatMistralAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
@@ -7,7 +10,7 @@ from core.vector_store import build_vector_store, load_vector_store, get_retriev
 
 def get_llm():
     return ChatMistralAI(
-        model="mistral-small-latest",
+        model=os.getenv("MISTRAL_MODEL", "open-mistral-7b"),
         mistral_api_key=os.getenv("MISTRAL_API_KEY"),
         temperature=0.3,
     )
@@ -57,7 +60,7 @@ Context from meeting transcript:
 
 def load_rag_chain():
     vector_store = load_vector_store()
-    retriver = get_retriever()
+    retriver = get_retriever(vector_store)
 
     llm = get_llm()
     prompt = ChatPromptTemplate.from_messages([

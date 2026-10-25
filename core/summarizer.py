@@ -5,9 +5,12 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 
 import os 
+from dotenv import load_dotenv
+
+load_dotenv()
 
 def get_llm():
-    return ChatMistralAI(model = "mistral-small-latest", mistral_api_key = os.getenv("MISTRAL_API_KEY"),temperature=0.3)
+    return ChatMistralAI(model=os.getenv("MISTRAL_MODEL", "open-mistral-7b"), mistral_api_key=os.getenv("MISTRAL_API_KEY"), temperature=0.3)
 
 
 def split_transcript(transcript: str) -> list:
