@@ -16,9 +16,14 @@ load_dotenv()
 # Sync Streamlit Cloud secrets into os.environ
 try:
     if hasattr(st, "secrets"):
-        for k, v in st.secrets.items():
-            if isinstance(v, str):
-                os.environ[k] = v
+        for k in list(st.secrets.keys()):
+            v = st.secrets[k]
+            if isinstance(v, str) and v.strip():
+                os.environ[k] = v.strip().strip('"').strip("'")
+            elif isinstance(v, dict):
+                for sub_k, sub_v in v.items():
+                    if isinstance(sub_v, str) and sub_v.strip():
+                        os.environ[sub_k] = sub_v.strip().strip('"').strip("'")
 except Exception:
     pass
 
@@ -377,6 +382,29 @@ with st.sidebar:
 
     language = st.selectbox("Language", ["english", "hinglish"], index=0)
 
+    # API Keys Expander
+    has_mistral = bool((os.getenv("MISTRAL_API_KEY") or "").strip())
+    with st.expander("🔑 API Keys", expanded=not has_mistral):
+        m_input = st.text_input(
+            "Mistral API Key",
+            value=os.getenv("MISTRAL_API_KEY", ""),
+            type="password",
+            placeholder="mstrl_...",
+            help="Required for summarization and interactive Q&A"
+        )
+        if m_input.strip():
+            os.environ["MISTRAL_API_KEY"] = m_input.strip().strip('"').strip("'")
+
+        s_input = st.text_input(
+            "Sarvam API Key",
+            value=os.getenv("SARVAM_API_KEY", ""),
+            type="password",
+            placeholder="sk_...",
+            help="Required for Hinglish speech-to-text translation"
+        )
+        if s_input.strip():
+            os.environ["SARVAM_API_KEY"] = s_input.strip().strip('"').strip("'")
+
     run_btn = st.button("⚡  Analyse", use_container_width=True)
 
     if st.session_state.pipeline_done:
@@ -401,6 +429,10 @@ st.markdown("---")
 if run_btn:
     if not source.strip():
         st.error("Please provide a valid YouTube URL or upload a media file.")
+    elif not (os.getenv("MISTRAL_API_KEY") or "").strip():
+        st.error("⚠️ Mistral API Key is missing! Please enter it in the '🔑 API Keys' section in the sidebar, or configure it in Streamlit Cloud Secrets.")
+    elif language.lower() == "hinglish" and not (os.getenv("SARVAM_API_KEY") or "").strip():
+        st.error("⚠️ Sarvam API Key is missing! Hinglish transcription requires a Sarvam API key. Please enter it in the '🔑 API Keys' section in the sidebar.")
     else:
         st.session_state.pipeline_done = False
         st.session_state.result = None

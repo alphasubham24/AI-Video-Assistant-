@@ -77,9 +77,10 @@ def transcribe_chunk_sarvam(chunk_path: str) -> str:
     Sarvam sync API only accepts ≤30s audio. We split this chunk into
     25-second pieces, send each separately, and join the transcripts.
     """
-    api_key = os.getenv("SARVAM_API_KEY", SARVAM_API_KEY)
+    raw_key = os.getenv("SARVAM_API_KEY", SARVAM_API_KEY)
+    api_key = (raw_key or "").strip().strip('"').strip("'")
     if not api_key:
-        raise RuntimeError("SARVAM_API_KEY is not set in environment / .env")
+        raise RuntimeError("SARVAM_API_KEY is not set. Please set it in Streamlit Cloud Secrets or in the sidebar under 'API Keys'.")
 
     audio = AudioSegment.from_file(chunk_path)
     piece_ms = SARVAM_PIECE_SECONDS * 1000

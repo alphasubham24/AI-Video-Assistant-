@@ -10,7 +10,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 def get_llm():
-    return ChatMistralAI(model=os.getenv("MISTRAL_MODEL", "open-mistral-7b"), mistral_api_key=os.getenv("MISTRAL_API_KEY"), temperature=0.3)
+    api_key = (os.getenv("MISTRAL_API_KEY") or "").strip().strip('"').strip("'")
+    return ChatMistralAI(
+        model=os.getenv("MISTRAL_MODEL", "open-mistral-7b"),
+        mistral_api_key=api_key,
+        temperature=0.3
+    )
 
 
 def split_transcript(transcript: str) -> list:

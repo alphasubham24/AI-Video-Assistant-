@@ -9,9 +9,10 @@ from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 from core.vector_store import build_vector_store, load_vector_store, get_retriever
 
 def get_llm():
+    api_key = (os.getenv("MISTRAL_API_KEY") or "").strip().strip('"').strip("'")
     return ChatMistralAI(
         model=os.getenv("MISTRAL_MODEL", "open-mistral-7b"),
-        mistral_api_key=os.getenv("MISTRAL_API_KEY"),
+        mistral_api_key=api_key,
         temperature=0.3,
     )
 
