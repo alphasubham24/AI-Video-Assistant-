@@ -1,4 +1,5 @@
 import os
+import re
 import streamlit as st
 import time
 import sys
@@ -354,7 +355,25 @@ with st.sidebar:
     st.markdown("---")
 
     st.markdown('<span class="badge badge-purple">Input</span>', unsafe_allow_html=True)
-    source = st.text_input("YouTube URL or File Path", placeholder="https://youtube.com/watch?v=... or /path/to/file.mp4")
+    input_mode = st.radio("Source", ["YouTube URL", "Upload File"], horizontal=True, label_visibility="collapsed")
+    source = ""
+    if input_mode == "YouTube URL":
+        source = st.text_input("YouTube URL", placeholder="https://youtube.com/watch?v=... or shorts URL")
+    else:
+        uploaded_file = st.file_uploader(
+            "Upload Audio / Video",
+            type=["mp4", "mkv", "avi", "mov", "webm", "mp3", "wav", "m4a", "ogg"],
+            help="Upload meeting recording, video, or audio file"
+        )
+        if uploaded_file is not None:
+            upload_dir = "downloades"
+            os.makedirs(upload_dir, exist_ok=True)
+            safe_name = re.sub(r'[^\w\-_\. ]', '_', uploaded_file.name)
+            save_path = os.path.join(upload_dir, safe_name)
+            with open(save_path, "wb") as f:
+                f.write(uploaded_file.getbuffer())
+            source = save_path
+            st.caption(f"📁 Ready: `{uploaded_file.name}`")
 
     language = st.selectbox("Language", ["english", "hinglish"], index=0)
 
@@ -381,7 +400,7 @@ st.markdown("---")
 # ── Run Pipeline ────────────────────────────────────────────────────────────────
 if run_btn:
     if not source.strip():
-        st.error("Please enter a YouTube URL or file path.")
+        st.error("Please provide a valid YouTube URL or upload a media file.")
     else:
         st.session_state.pipeline_done = False
         st.session_state.result = None
@@ -442,7 +461,22 @@ if run_btn:
             for k in ["audio","transcript","title","summary","extract","rag"]:
                 if st.session_state.pipeline_steps.get(k) == "active":
                     st.session_state.pipeline_steps[k] = "pending"
-            progress_placeholder.error(f"❌ Error: {e}")
+            err_str = str(e)
+            if "Sign in to confirm" in err_str or "bot" in err_str or "403" in err_str:
+                progress_placeholder.markdown("""
+                <div style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);border-radius:10px;padding:1rem 1.25rem;margin-bottom:1rem;">
+                    <div style="color:#f87171;font-weight:700;font-size:1rem;margin-bottom:0.4rem;">🚫 YouTube Cloud IP Protection Triggered</div>
+                    <div style="color:#d1d5db;font-size:0.875rem;line-height:1.5;">
+                        YouTube blocks automated downloads from shared datacenter servers (Streamlit Cloud).
+                        <br><br>
+                        <b>Easy 1-Click Solution:</b> In the sidebar under <b>Source</b>, switch to <b>"Upload File"</b> and upload your video or audio file directly!
+                        <br><br>
+                        <i>Or, if you prefer downloading YouTube links directly, provide a <code>cookies.txt</code> in your Streamlit Cloud Secrets.</i>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                progress_placeholder.error(f"❌ Error: {e}")
 
 # ── Results ──────────────────────────────────────────────────────────────────────
 if st.session_state.result:

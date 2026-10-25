@@ -27,6 +27,18 @@ def download_youtube_audio(url: str) -> str:
     video_id = None
     raw_wav = None
 
+    # Check for cookies file or environment variable
+    cookie_file = None
+    if os.path.exists("cookies.txt"):
+        cookie_file = "cookies.txt"
+    elif os.getenv("YOUTUBE_COOKIES"):
+        try:
+            with open("cookies.txt", "w", encoding="utf-8") as f:
+                f.write(os.getenv("YOUTUBE_COOKIES").strip())
+            cookie_file = "cookies.txt"
+        except Exception:
+            pass
+
     for client_list in client_candidates:
         ydl_opts = {
             "format": "bestaudio/best",
@@ -47,6 +59,8 @@ def download_youtube_audio(url: str) -> str:
                 }
             },
         }
+        if cookie_file:
+            ydl_opts["cookiefile"] = cookie_file
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
