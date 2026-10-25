@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import time
 import sys
@@ -10,6 +11,15 @@ if hasattr(sys.stdout, 'reconfigure'):
         pass
 
 load_dotenv()
+
+# Sync Streamlit Cloud secrets into os.environ
+try:
+    if hasattr(st, "secrets"):
+        for k, v in st.secrets.items():
+            if isinstance(v, str):
+                os.environ[k] = v
+except Exception:
+    pass
 
 from utils.audio_processor import process_input
 from core.transcriber import transcribe_all
