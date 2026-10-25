@@ -18,24 +18,50 @@ def sanitize_filename(name: str) -> str:
 
 def download_youtube_audio(url: str) -> str:
     """Download audio from YouTube and normalize to 16kHz mono WAV."""
-    ydl_opts = {
-        "format": "bestaudio/best",
-        "outtmpl": os.path.join(DOWNLOAD_DIR, "%(id)s.%(ext)s"),
-        "postprocessors": [
-            {
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "wav",
-                "preferredquality": "192",
-            }
-        ],
-        "quiet": True,
-        "windowsfilenames": True,
-        "noplaylist": True,
-    }
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=True)
-        video_id = info.get("id", "audio")
-        raw_wav = os.path.join(DOWNLOAD_DIR, f"{video_id}.wav")
+    client_candidates = [
+        ["mweb", "android", "web_embedded"],
+        ["android", "ios"],
+        ["web_embedded", "tv"],
+    ]
+    last_err = None
+    video_id = None
+    raw_wav = None
+
+    for client_list in client_candidates:
+        ydl_opts = {
+            "format": "bestaudio/best",
+            "outtmpl": os.path.join(DOWNLOAD_DIR, "%(id)s.%(ext)s"),
+            "postprocessors": [
+                {
+                    "key": "FFmpegExtractAudio",
+                    "preferredcodec": "wav",
+                    "preferredquality": "192",
+                }
+            ],
+            "quiet": True,
+            "windowsfilenames": True,
+            "noplaylist": True,
+            "extractor_args": {
+                "youtube": {
+                    "player_client": client_list
+                }
+            },
+        }
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                video_id = info.get("id", "audio")
+                raw_wav = os.path.join(DOWNLOAD_DIR, f"{video_id}.wav")
+                if os.path.exists(raw_wav):
+                    break
+        except Exception as e:
+            last_err = e
+            continue
+
+    if not raw_wav or not os.path.exists(raw_wav):
+        if last_err:
+            raise last_err
+        raise RuntimeError("Failed to extract YouTube audio.")
 
     # Standardize to 16kHz mono WAV for Whisper & Sarvam
     output_path = os.path.join(DOWNLOAD_DIR, f"{video_id}_16k.wav")
